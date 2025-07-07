@@ -208,3 +208,9 @@ Start importing Assets/Scripts/Piece.cs using Guid(fc963c653a3f9814ba8df9e561fe6
  -> (artifact id: '347e8d2a7728ced71a2a19393b8c40f1') in 0.047927 seconds
 Number of updated asset objects reloaded before import = 0
 Number of asset objects unloaded after import = 1
+Editor requested this worker to shutdown with reason: Scaling down because of idle timeout
+TcpMessagingSession - receive error
+AssetImportWorkerClient::OnTransportError - code=2 error=End of file
+AssetImportWorker is now disconnected from the server
+Process exiting
+Exiting without the bug reporter. Application will terminate with return code 0

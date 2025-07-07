@@ -5,6 +5,8 @@ using Assets.Scripts;
 
 public class Game : MonoBehaviour
 {
+    public GameObject comingSoonPanel;
+    public float delayBeforePanel = 2f; // Delay in seconds
 
     // Use this for initialization
     void Start()
@@ -116,7 +118,7 @@ public class Game : MonoBehaviour
 
     }
 
-   
+
     /// <summary>
     /// boring UI, waiting for uGUI framework :)
     /// </summary>
@@ -195,7 +197,7 @@ public class Game : MonoBehaviour
                     toAnimateI = iFound; toAnimateJ = jFound + 1;
                 }
 
-                if(pieceFound)
+                if (pieceFound)
                 {
                     //get the coordinates of the empty object
                     screenPositionToAnimate = GetScreenCoordinatesFromVieport(toAnimateI, toAnimateJ);
@@ -209,12 +211,12 @@ public class Game : MonoBehaviour
     }
 
 
-    private void AnimateMovement(Piece toMove,  float time)
+    private void AnimateMovement(Piece toMove, float time)
     {
         //animate it
         //Lerp could also be used, but I prefer the MoveTowards approach :)
-        toMove.GameObject.transform.position = Vector2.MoveTowards(toMove.GameObject.transform.position, 
-          screenPositionToAnimate , time * AnimSpeed);
+        toMove.GameObject.transform.position = Vector2.MoveTowards(toMove.GameObject.transform.position,
+          screenPositionToAnimate, time * AnimSpeed);
     }
 
     /// <summary>
@@ -222,7 +224,7 @@ public class Game : MonoBehaviour
     /// </summary>
     private void CheckIfAnimationEnded()
     {
-        if(Vector2.Distance(PieceToAnimate.GameObject.transform.position, 
+        if (Vector2.Distance(PieceToAnimate.GameObject.transform.position,
             screenPositionToAnimate) < 0.1f)
         {
             //make sure they swap, exchange positions and stuff
@@ -235,41 +237,57 @@ public class Game : MonoBehaviour
 
     private void CheckForVictory()
     {
-        //dual loop to check the object's properties
-        
         for (int i = 0; i < Constants.MaxColumns; i++)
         {
             for (int j = 0; j < Constants.MaxRows; j++)
             {
                 if (Matrix[i, j] == null) continue;
                 if (Matrix[i, j].CurrentI != Matrix[i, j].OriginalI ||
-                    Matrix[i, j].CurrentI != Matrix[i, j].OriginalJ)
-                    return; //at least one wrong piece, so we haven't won (yet!)
+                    Matrix[i, j].CurrentJ != Matrix[i, j].OriginalJ)
+                    return;
             }
         }
-        //if we did not return, then we've won!
+
         gameState = GameState.End;
+        StartCoroutine(ShowComingSoonAfterDelay());
     }
 
-    private void ScalePieces() {
+    private IEnumerator ShowComingSoonAfterDelay()
+    {
+        yield return new WaitForSeconds(delayBeforePanel);
+        comingSoonPanel.SetActive(true);
+    }
+
+    private void ScalePieces()
+    {
         SpriteRenderer spriteRenderer = go[0].GetComponent<SpriteRenderer>();
         float screenHeight = Camera.main.orthographicSize * 2f;
         float screenWidth = screenHeight / Screen.height * Screen.width;
         float width = screenWidth / spriteRenderer.sprite.bounds.size.x / 4;
         float height = screenHeight / spriteRenderer.sprite.bounds.size.y / 4;
-        for (int c = 0; c < go.Length; c++) {
+        for (int c = 0; c < go.Length; c++)
+        {
             go[c].transform.localScale = new Vector3(width, height, 1f);
         }
     }
 
     private Vector3 GetScreenCoordinatesFromVieport(int i, int j)
     {
-        //solution for screen corners found here
-        //http://answers.unity3d.com/questions/486035/how-to-find-world-coordinates-of-screen-corners-wi.html
-        Vector3 point = Camera.main.ViewportToWorldPoint(new Vector3(0.25f * j, 1 - 0.25f * i, 0));
+        float columns = Constants.MaxColumns;
+        float rows = Constants.MaxRows;
+
+        float xSpacing = 1f / columns;
+        float ySpacing = 1f / rows;
+
+        // Add 0.5f to center each piece inside its cell
+        float x = xSpacing * j + xSpacing / 2f;
+        float y = 1f - (ySpacing * i + ySpacing / 2f);
+
+        Vector3 point = Camera.main.ViewportToWorldPoint(new Vector3(x, y, Camera.main.nearClipPlane));
         point.z = 0;
         return point;
     }
+
 
     Vector3 screenPositionToAnimate;
     private Piece PieceToAnimate;
