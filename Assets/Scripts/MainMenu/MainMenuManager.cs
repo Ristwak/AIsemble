@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -7,41 +8,75 @@ public class MainMenuManager : MonoBehaviour
     public GameObject aboutPanel;
     public GameObject loadingPanel;
 
-    void Start()
+    private bool isLoading;
+
+    private void Start()
     {
-        menuPanel.SetActive(true);
-        loadingPanel.SetActive(false);
-        aboutPanel.SetActive(false);
+        Time.timeScale = 1f;
+
+        if (menuPanel != null)
+            menuPanel.SetActive(true);
+
+        if (loadingPanel != null)
+            loadingPanel.SetActive(false);
+
+        if (aboutPanel != null)
+            aboutPanel.SetActive(false);
+
+        isLoading = false;
     }
 
     public void OnStartGame()
     {
-        // Load first level or scene
+        if (isLoading)
+            return;
+
+        isLoading = true;
+
         Debug.Log("Starting Game");
+
+        if (menuPanel != null)
+            menuPanel.SetActive(false);
+
+        if (aboutPanel != null)
+            aboutPanel.SetActive(false);
+
+        if (loadingPanel != null)
+            loadingPanel.SetActive(true);
+
+        StartCoroutine(LoadGameScene());
+    }
+
+    private IEnumerator LoadGameScene()
+    {
+        // Allow the loading panel to render for at least one frame.
+        yield return null;
+
         SceneManager.LoadScene("GameScene");
-        menuPanel.SetActive(false);
-        loadingPanel.SetActive(true);
-        menuPanel.SetActive(false);
     }
 
     public void OnBack()
     {
-        // Return to main menu
-        aboutPanel.SetActive(false);
-        menuPanel.SetActive(true);
+        if (aboutPanel != null)
+            aboutPanel.SetActive(false);
+
+        if (menuPanel != null)
+            menuPanel.SetActive(true);
     }
 
     public void OnAbout()
     {
-        // Open AI history info
-        menuPanel.SetActive(false);
-        aboutPanel.SetActive(true);
+        if (menuPanel != null)
+            menuPanel.SetActive(false);
+
+        if (aboutPanel != null)
+            aboutPanel.SetActive(true);
+
         Debug.Log("About AI opened.");
     }
 
     public void OnExit()
     {
-        // Open AI history info
         Debug.Log("Quitting Game");
         Application.Quit();
     }

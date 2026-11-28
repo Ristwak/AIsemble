@@ -1,52 +1,79 @@
-using System.Collections;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
     public GameObject comingSoonPanel;
     public GameObject exitPanel;
 
-    private bool isComingSoonActive = false;
+    private bool isComingSoonActive;
 
-    void Start()
+    private void Start()
     {
-        exitPanel.SetActive(false);
-        comingSoonPanel.SetActive(false);
+        // Prevent a previous scene's pause state from carrying over.
+        Time.timeScale = 1f;
+
+        if (exitPanel != null)
+            exitPanel.SetActive(false);
+
+        if (comingSoonPanel != null)
+            comingSoonPanel.SetActive(false);
+
+        isComingSoonActive = false;
     }
 
-    void Update()
+    private void Update()
     {
-        if (comingSoonPanel.activeSelf)
+        if (comingSoonPanel != null &&
+            comingSoonPanel.activeSelf)
+        {
             isComingSoonActive = true;
-        if (Input.GetKeyDown(KeyCode.Escape)) // Android back button
-            {
-                if (!exitPanel.activeSelf)
-                {
-                    exitPanel.SetActive(true);
-                    comingSoonPanel.SetActive(false);
-                }
-            }
+        }
 
-        if (exitPanel.activeSelf)
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            OpenExitPanel();
+        }
+
+        if (exitPanel != null && exitPanel.activeSelf)
         {
             Time.timeScale = 0f;
         }
     }
 
+    private void OpenExitPanel()
+    {
+        if (exitPanel == null || exitPanel.activeSelf)
+            return;
+
+        if (comingSoonPanel != null &&
+            comingSoonPanel.activeSelf)
+        {
+            isComingSoonActive = true;
+            comingSoonPanel.SetActive(false);
+        }
+
+        exitPanel.SetActive(true);
+        Time.timeScale = 0f;
+    }
+
     public void OnExitYes()
     {
-        Application.Quit();
+        Time.timeScale = 1f;
+
         Debug.Log("Game closed.");
+        Application.Quit();
     }
 
     public void OnExitNo()
     {
-        exitPanel.SetActive(false);
-        if(isComingSoonActive)
-            comingSoonPanel.SetActive(true);
-        else
-            comingSoonPanel.SetActive(false);
-        Time.timeScale = 1f; // Resume game if exit panel is closed
+        if (exitPanel != null)
+            exitPanel.SetActive(false);
+
+        if (comingSoonPanel != null)
+        {
+            comingSoonPanel.SetActive(isComingSoonActive);
+        }
+
+        Time.timeScale = 1f;
     }
 }

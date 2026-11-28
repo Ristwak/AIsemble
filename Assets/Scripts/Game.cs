@@ -1,94 +1,151 @@
-﻿using UnityEngine;
-using System.Collections;
+﻿using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 using Assets.Scripts;
-
 
 public class Game : MonoBehaviour
 {
+    [Header("Game UI")]
     public GameObject comingSoonPanel;
-    public float delayBeforePanel = 2f; // Delay in seconds
+    public float delayBeforePanel = 2f;
 
-    // Use this for initialization
-    void Start()
+    [Header("Puzzle Pieces")]
+    public GameObject[] go;
+
+    [Header("Movement")]
+    public float AnimSpeed = 10f;
+
+    private Piece[,] Matrix =
+        new Piece[Constants.MaxRows, Constants.MaxColumns];
+
+    private readonly Dictionary<GameObject, Piece> pieceLookup =
+        new Dictionary<GameObject, Piece>();
+
+    private GameState gameState;
+
+    private Camera mainCamera;
+
+    private int blankRow;
+    private int blankColumn;
+
+    private int targetRow;
+    private int targetColumn;
+
+    private Piece pieceToAnimate;
+    private Vector3 screenPositionToAnimate;
+
+    private bool isInitialized;
+
+    private void Start()
     {
-        gameState = GameState.Start;
+        mainCamera = Camera.main;
 
-        //rescale pieces to adjust to screen
+        if (!InitializePuzzle())
+        {
+            enabled = false;
+            return;
+        }
+
+        gameState = GameState.Start;
+    }
+
+    private bool InitializePuzzle()
+    {
+        if (mainCamera == null)
+        {
+            Debug.LogError("Game: Main Camera not found.");
+            return false;
+        }
+
+        if (go == null || go.Length != Constants.MaxSize)
+        {
+            Debug.LogError(
+                $"Game: Exactly {Constants.MaxSize} puzzle pieces must be assigned."
+            );
+            return false;
+        }
+
+        if (Constants.MaxRows != 4 || Constants.MaxColumns != 4)
+        {
+            Debug.LogError("Game: Current puzzle setup expects a 4x4 grid.");
+            return false;
+        }
+
+        pieceLookup.Clear();
+
+        for (int i = 0; i < Constants.MaxRows; i++)
+        {
+            for (int j = 0; j < Constants.MaxColumns; j++)
+            {
+                int index = i * Constants.MaxColumns + j;
+                GameObject pieceObject = go[index];
+
+                if (pieceObject == null)
+                {
+                    Debug.LogError($"Game: Puzzle piece at index {index} is missing.");
+                    return false;
+                }
+
+                pieceObject.SetActive(true);
+
+                SpriteRenderer spriteRenderer =
+                    pieceObject.GetComponent<SpriteRenderer>();
+
+                if (spriteRenderer == null || spriteRenderer.sprite == null)
+                {
+                    Debug.LogError(
+                        $"Game: SpriteRenderer or Sprite missing on {pieceObject.name}."
+                    );
+                    return false;
+                }
+
+                pieceObject.transform.position =
+                    GetScreenCoordinatesFromViewport(i, j);
+
+                Piece piece = new Piece
+                {
+                    GameObject = pieceObject,
+                    OriginalI = i,
+                    OriginalJ = j,
+                    CurrentI = i,
+                    CurrentJ = j
+                };
+
+                Matrix[i, j] = piece;
+                pieceLookup[pieceObject] = piece;
+
+                BoxCollider2D collider =
+                    pieceObject.GetComponent<BoxCollider2D>();
+
+                if (collider == null)
+                    pieceObject.AddComponent<BoxCollider2D>();
+            }
+        }
+
         ScalePieces();
 
-        //random blank piece
-        int index = Random.Range(0, Constants.MaxSize);
-        go[index].SetActive(false);
+        // Select one random empty position.
+        blankRow = Random.Range(0, Constants.MaxRows);
+        blankColumn = Random.Range(0, Constants.MaxColumns);
 
-        //get the objects from the 1D array,
-        //convert them to Piece class and
-        //place them in a 2D array
-        for (int i = 0; i < Constants.MaxColumns; i++)
-        {
-            for (int j = 0; j < Constants.MaxRows; j++)
-            {
-                if (go[i * Constants.MaxColumns + j].activeInHierarchy)
-                {
-                    Vector3 point = GetScreenCoordinatesFromVieport(i, j);
-                    go[i * Constants.MaxColumns + j].transform.position = point;
+        GameObject blankObject = go[
+            blankRow * Constants.MaxColumns + blankColumn
+        ];
 
-                    //place relevant information
-                    Matrix[i, j] = new Piece();
-                    Matrix[i, j].GameObject = go[i * Constants.MaxColumns + j];
-                    Matrix[i, j].OriginalI = i; Matrix[i, j].OriginalJ = j;
-                    //add a box collider the the raycast to work properly
-                    if (Matrix[i, j].GameObject.GetComponent<BoxCollider2D>() == null)
-                        Matrix[i, j].GameObject.AddComponent<BoxCollider2D>();
-                }
-                else
-                {
-                    Matrix[i, j] = null; //this will be our "empty" object
-                }
-            }
-        }
+        Matrix[blankRow, blankColumn] = null;
+        pieceLookup.Remove(blankObject);
+        blankObject.SetActive(false);
+
+        isInitialized = true;
+        return true;
     }
 
-    private void Shuffle()
+    private void Update()
     {
-        //shuffle
-        for (int i = 0; i < Constants.MaxColumns; i++)
-        {
-            for (int j = 0; j < Constants.MaxRows; j++)
-            {
-                if (Matrix[i, j] == null) continue;
+        if (!isInitialized)
+            return;
 
-                int random_i = Random.Range(0, Constants.MaxColumns);
-                int random_j = Random.Range(0, Constants.MaxRows);
-                //swap'em
-                Swap(i, j, random_i, random_j);
-            }
-        }
-    }
-
-    private void Swap(int i, int j, int random_i, int random_j)
-    {
-        //temp piece, necessary for swapping
-        Piece temp = Matrix[i, j];
-        Matrix[i, j] = Matrix[random_i, random_j];
-        Matrix[random_i, random_j] = temp;
-
-        //set the correct positions to both objects
-        if (Matrix[i, j] != null)
-            Matrix[i, j].GameObject.transform.position = GetScreenCoordinatesFromVieport(i, j);
-        Matrix[random_i, random_j].GameObject.transform.position
-            = GetScreenCoordinatesFromVieport(random_i, random_j);
-
-        //set the required properties
-        if (Matrix[i, j] != null)
-        { Matrix[i, j].CurrentI = i; Matrix[i, j].CurrentJ = j; }
-        Matrix[random_i, random_j].CurrentI = random_i;
-        Matrix[random_i, random_j].CurrentJ = random_j;
-    }
-
-
-    // Update is called once per frame
-    void Update()
-    {
         switch (gameState)
         {
             case GameState.Start:
@@ -98,203 +155,331 @@ public class Game : MonoBehaviour
                     gameState = GameState.Playing;
                 }
                 break;
+
             case GameState.Playing:
                 CheckPieceInput();
                 break;
+
             case GameState.Animating:
-                AnimateMovement(PieceToAnimate, Time.deltaTime);
-                CheckIfAnimationEnded();
+                AnimateMovement();
                 break;
+
             case GameState.End:
                 if (Input.GetMouseButtonUp(0))
-                {   //reload
-                    Application.LoadLevel(Application.loadedLevel);
-                }
-                break;
-            default:
-                break;
-        }
-
-
-    }
-
-
-    /// <summary>
-    /// boring UI, waiting for uGUI framework :)
-    /// </summary>
-    void OnGUI()
-    {
-        switch (gameState)
-        {
-            case GameState.Start:
-                GUI.Label(new Rect(0, 0, 100, 100), "Tap to start!");
-                break;
-            case GameState.Playing:
-                break;
-            case GameState.End:
-                GUI.Label(new Rect(0, 0, 100, 100), "Congrats, tap to start over!");
-                break;
-            default:
+                    RestartGame();
                 break;
         }
     }
 
-
-    void CheckPieceInput()
+    private void Shuffle()
     {
-        if (Input.GetMouseButtonUp(0))
-        {
-            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            RaycastHit2D hit = Physics2D.Raycast(ray.origin, ray.direction);
+        // Shuffle through legal moves so the puzzle remains solvable.
+        int previousBlankRow = -1;
+        int previousBlankColumn = -1;
 
-            //check if a piece was hit
-            if (hit.collider != null)
+        const int shuffleMoves = 150;
+
+        for (int move = 0; move < shuffleMoves; move++)
+        {
+            List<Vector2Int> availableMoves = GetAdjacentCells(
+                blankRow,
+                blankColumn
+            );
+
+            // Avoid immediately reversing the previous move.
+            if (availableMoves.Count > 1)
             {
-                string name = hit.collider.gameObject.name;
-                string[] parts = name.Split('-');
-                int iPart = int.Parse(parts[1]);
-                int jPart = int.Parse(parts[2]);
-
-                int iFound = -1, jFound = -1;
-                //find which one was hit, in our 2D array
-                //there must be a better way than this one
-                for (int i = 0; i < Constants.MaxColumns; i++)
-                {
-                    if (iFound != -1) break;
-                    for (int j = 0; j < Constants.MaxRows; j++)
-                    {
-                        if (iFound != -1) break;
-                        if (Matrix[i, j] == null) continue;
-                        if (Matrix[i, j].OriginalI == iPart
-                            && Matrix[i, j].OriginalJ == jPart)
-                        {
-                            iFound = i; jFound = j;
-                        }
-                    }
-                }
-
-                Piece foundPiece = Matrix[iFound, jFound];
-                //check for the null piece, taking into account the game bounds
-                bool pieceFound = false;
-                if (iFound > 0 && Matrix[iFound - 1, jFound] == null)
-                {
-                    pieceFound = true;
-                    toAnimateI = iFound - 1; toAnimateJ = jFound;
-                }
-                else if (jFound > 0 && Matrix[iFound, jFound - 1] == null)
-                {
-                    pieceFound = true;
-                    toAnimateI = iFound; toAnimateJ = jFound - 1;
-                }
-                else if (iFound < Constants.MaxColumns - 1 && Matrix[iFound + 1, jFound] == null)
-                {
-                    pieceFound = true;
-                    toAnimateI = iFound + 1; toAnimateJ = jFound;
-                }
-                else if (jFound < Constants.MaxRows - 1 && Matrix[iFound, jFound + 1] == null)
-                {
-                    pieceFound = true;
-                    toAnimateI = iFound; toAnimateJ = jFound + 1;
-                }
-
-                if (pieceFound)
-                {
-                    //get the coordinates of the empty object
-                    screenPositionToAnimate = GetScreenCoordinatesFromVieport(toAnimateI, toAnimateJ);
-                    PieceToAnimate = Matrix[iFound, jFound];
-                    gameState = GameState.Animating;
-                }
-
+                availableMoves.RemoveAll(
+                    cell => cell.x == previousBlankRow &&
+                            cell.y == previousBlankColumn
+                );
             }
 
+            if (availableMoves.Count == 0)
+                break;
+
+            Vector2Int selectedCell =
+                availableMoves[Random.Range(0, availableMoves.Count)];
+
+            previousBlankRow = blankRow;
+            previousBlankColumn = blankColumn;
+
+            SwapCells(
+                blankRow,
+                blankColumn,
+                selectedCell.x,
+                selectedCell.y
+            );
+
+            blankRow = selectedCell.x;
+            blankColumn = selectedCell.y;
         }
-    }
 
-
-    private void AnimateMovement(Piece toMove, float time)
-    {
-        //animate it
-        //Lerp could also be used, but I prefer the MoveTowards approach :)
-        toMove.GameObject.transform.position = Vector2.MoveTowards(toMove.GameObject.transform.position,
-          screenPositionToAnimate, time * AnimSpeed);
-    }
-
-    /// <summary>
-    /// A simple check to see if the animation has finished
-    /// </summary>
-    private void CheckIfAnimationEnded()
-    {
-        if (Vector2.Distance(PieceToAnimate.GameObject.transform.position,
-            screenPositionToAnimate) < 0.1f)
+        // Prevent starting in an already solved state.
+        if (IsPuzzleSolved())
         {
-            //make sure they swap, exchange positions and stuff
-            Swap(PieceToAnimate.CurrentI, PieceToAnimate.CurrentJ, toAnimateI, toAnimateJ);
-            gameState = GameState.Playing;
-            //check if the use has won
-            CheckForVictory();
+            List<Vector2Int> moves =
+                GetAdjacentCells(blankRow, blankColumn);
+
+            if (moves.Count > 0)
+            {
+                Vector2Int cell = moves[0];
+
+                SwapCells(
+                    blankRow,
+                    blankColumn,
+                    cell.x,
+                    cell.y
+                );
+
+                blankRow = cell.x;
+                blankColumn = cell.y;
+            }
         }
+    }
+
+    private List<Vector2Int> GetAdjacentCells(int row, int column)
+    {
+        List<Vector2Int> cells = new List<Vector2Int>(4);
+
+        if (row > 0)
+            cells.Add(new Vector2Int(row - 1, column));
+
+        if (row < Constants.MaxRows - 1)
+            cells.Add(new Vector2Int(row + 1, column));
+
+        if (column > 0)
+            cells.Add(new Vector2Int(row, column - 1));
+
+        if (column < Constants.MaxColumns - 1)
+            cells.Add(new Vector2Int(row, column + 1));
+
+        return cells;
+    }
+
+    private void CheckPieceInput()
+    {
+        if (!Input.GetMouseButtonUp(0))
+            return;
+
+        Vector3 mousePosition =
+            mainCamera.ScreenToWorldPoint(Input.mousePosition);
+
+        Collider2D hit = Physics2D.OverlapPoint(mousePosition);
+
+        if (hit == null)
+            return;
+
+        GameObject clickedObject = hit.gameObject;
+
+        if (!pieceLookup.TryGetValue(clickedObject, out Piece clickedPiece))
+            return;
+
+        int row = clickedPiece.CurrentI;
+        int column = clickedPiece.CurrentJ;
+
+        if (Mathf.Abs(row - blankRow) +
+            Mathf.Abs(column - blankColumn) != 1)
+        {
+            return;
+        }
+
+        pieceToAnimate = clickedPiece;
+
+        targetRow = blankRow;
+        targetColumn = blankColumn;
+
+        screenPositionToAnimate =
+            GetScreenCoordinatesFromViewport(blankRow, blankColumn);
+
+        gameState = GameState.Animating;
+    }
+
+    private void AnimateMovement()
+    {
+        if (pieceToAnimate == null ||
+            pieceToAnimate.GameObject == null)
+        {
+            gameState = GameState.Playing;
+            return;
+        }
+
+        Transform pieceTransform = pieceToAnimate.GameObject.transform;
+
+        pieceTransform.position = Vector3.MoveTowards(
+            pieceTransform.position,
+            screenPositionToAnimate,
+            Mathf.Max(0.01f, AnimSpeed) * Time.deltaTime
+        );
+
+        if (Vector3.Distance(
+            pieceTransform.position,
+            screenPositionToAnimate
+        ) <= 0.01f)
+        {
+            CompleteMovement();
+        }
+    }
+
+    private void CompleteMovement()
+    {
+        int oldRow = pieceToAnimate.CurrentI;
+        int oldColumn = pieceToAnimate.CurrentJ;
+
+        SwapCells(
+            oldRow,
+            oldColumn,
+            targetRow,
+            targetColumn
+        );
+
+        // The empty cell moves to the piece's previous position.
+        blankRow = oldRow;
+        blankColumn = oldColumn;
+
+        pieceToAnimate = null;
+        gameState = GameState.Playing;
+
+        CheckForVictory();
+    }
+
+    private void SwapCells(
+        int rowA,
+        int columnA,
+        int rowB,
+        int columnB)
+    {
+        Piece temp = Matrix[rowA, columnA];
+
+        Matrix[rowA, columnA] = Matrix[rowB, columnB];
+        Matrix[rowB, columnB] = temp;
+
+        UpdatePiecePosition(rowA, columnA);
+        UpdatePiecePosition(rowB, columnB);
+    }
+
+    private void UpdatePiecePosition(int row, int column)
+    {
+        Piece piece = Matrix[row, column];
+
+        if (piece == null)
+            return;
+
+        piece.CurrentI = row;
+        piece.CurrentJ = column;
+
+        piece.GameObject.transform.position =
+            GetScreenCoordinatesFromViewport(row, column);
+    }
+
+    private bool IsPuzzleSolved()
+    {
+        for (int i = 0; i < Constants.MaxRows; i++)
+        {
+            for (int j = 0; j < Constants.MaxColumns; j++)
+            {
+                Piece piece = Matrix[i, j];
+
+                if (piece == null)
+                    continue;
+
+                if (piece.CurrentI != piece.OriginalI ||
+                    piece.CurrentJ != piece.OriginalJ)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private void CheckForVictory()
     {
-        for (int i = 0; i < Constants.MaxColumns; i++)
-        {
-            for (int j = 0; j < Constants.MaxRows; j++)
-            {
-                if (Matrix[i, j] == null) continue;
-                if (Matrix[i, j].CurrentI != Matrix[i, j].OriginalI ||
-                    Matrix[i, j].CurrentJ != Matrix[i, j].OriginalJ)
-                    return;
-            }
-        }
+        if (!IsPuzzleSolved())
+            return;
 
         gameState = GameState.End;
+
         StartCoroutine(ShowComingSoonAfterDelay());
     }
 
     private IEnumerator ShowComingSoonAfterDelay()
     {
-        yield return new WaitForSeconds(delayBeforePanel);
-        comingSoonPanel.SetActive(true);
+        yield return new WaitForSeconds(
+            Mathf.Max(0f, delayBeforePanel)
+        );
+
+        if (comingSoonPanel != null)
+            comingSoonPanel.SetActive(true);
+    }
+
+    private void RestartGame()
+    {
+        Time.timeScale = 1f;
+
+        SceneManager.LoadScene(
+            SceneManager.GetActiveScene().name
+        );
     }
 
     private void ScalePieces()
     {
-        SpriteRenderer spriteRenderer = go[0].GetComponent<SpriteRenderer>();
-        float screenHeight = Camera.main.orthographicSize * 2f;
-        float screenWidth = screenHeight / Screen.height * Screen.width;
-        float width = screenWidth / spriteRenderer.sprite.bounds.size.x / 4;
-        float height = screenHeight / spriteRenderer.sprite.bounds.size.y / 4;
-        for (int c = 0; c < go.Length; c++)
+        SpriteRenderer spriteRenderer =
+            go[0].GetComponent<SpriteRenderer>();
+
+        float screenHeight = mainCamera.orthographicSize * 2f;
+        float screenWidth =
+            screenHeight * Screen.width / Screen.height;
+
+        float spriteWidth = spriteRenderer.sprite.bounds.size.x;
+        float spriteHeight = spriteRenderer.sprite.bounds.size.y;
+
+        if (spriteWidth <= 0f || spriteHeight <= 0f)
+            return;
+
+        float width = screenWidth / spriteWidth / Constants.MaxColumns;
+        float height = screenHeight / spriteHeight / Constants.MaxRows;
+
+        Vector3 scale = new Vector3(width, height, 1f);
+
+        foreach (GameObject piece in go)
         {
-            go[c].transform.localScale = new Vector3(width, height, 1f);
+            if (piece != null)
+                piece.transform.localScale = scale;
         }
     }
 
-    private Vector3 GetScreenCoordinatesFromVieport(int i, int j)
+    private Vector3 GetScreenCoordinatesFromViewport(
+        int row,
+        int column)
     {
-        float columns = Constants.MaxColumns;
-        float rows = Constants.MaxRows;
+        float x = (column + 0.5f) / Constants.MaxColumns;
+        float y = 1f - (row + 0.5f) / Constants.MaxRows;
 
-        float xSpacing = 1f / columns;
-        float ySpacing = 1f / rows;
+        Vector3 point = mainCamera.ViewportToWorldPoint(
+            new Vector3(x, y, mainCamera.nearClipPlane)
+        );
 
-        // Add 0.5f to center each piece inside its cell
-        float x = xSpacing * j + xSpacing / 2f;
-        float y = 1f - (ySpacing * i + ySpacing / 2f);
-
-        Vector3 point = Camera.main.ViewportToWorldPoint(new Vector3(x, y, Camera.main.nearClipPlane));
-        point.z = 0;
+        point.z = 0f;
         return point;
     }
 
-
-    Vector3 screenPositionToAnimate;
-    private Piece PieceToAnimate;
-    private int toAnimateI, toAnimateJ;
-
-    public Piece[,] Matrix = new Piece[Constants.MaxColumns, Constants.MaxRows];
-    private GameState gameState;
-    public GameObject[] go;
-    public float AnimSpeed = 10f;
+    private void OnGUI()
+    {
+        if (gameState == GameState.Start)
+        {
+            GUI.Label(
+                new Rect(20, 20, 250, 40),
+                "Tap to start!"
+            );
+        }
+        else if (gameState == GameState.End)
+        {
+            GUI.Label(
+                new Rect(20, 20, 350, 40),
+                "Puzzle completed! Tap to restart."
+            );
+        }
+    }
 }

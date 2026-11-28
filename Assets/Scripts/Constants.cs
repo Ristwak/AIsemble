@@ -1,15 +1,14 @@
-﻿    using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 
-public static class Constants 
+public static class Constants
 {
-
-    public static readonly int MaxRows = 4;
-    public static readonly int MaxColumns = 4;
-    public static readonly int MaxSize = MaxRows * MaxColumns;
+    public const int MaxRows = 4;
+    public const int MaxColumns = 4;
+    public const int MaxSize = MaxRows * MaxColumns;
 }
 
-enum GameState
+public enum GameState
 {
     Start,
     Playing,
